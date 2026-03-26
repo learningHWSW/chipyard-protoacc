@@ -22,12 +22,8 @@ class EmptyU55CConfig extends Config (
 )
 
 class Protoaccu55cConfig extends Config (
-
-  new chipyard.fpga.u55c.WithU55CTweaks ++
-  new chipyard.harness.WithBoardFPGAHarnessBinders ++
   new WithU55CTweaks ++
   new protoacc.WithProtoAcc ++
   new freechips.rocketchip.rocket.WithNBigCores(1) ++
   new chipyard.config.AbstractConfig
-  new chipyard.RocketConfig
 )
