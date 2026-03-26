@@ -308,6 +308,12 @@ lazy val shuttle = withInitCheck((project in file("generators/shuttle")), "shutt
   .settings(libraryDependencies ++= rocketLibDeps.value)
   .settings(commonSettings)
 
+lazy val protoacc = (project in file("generators/protoacc"))
+  .dependsOn(rocketchip)
+  .settings(libraryDependencies ++= rocketLibDeps.value)
+  .settings(commonSettings)
+  .settings(chiselSettings)
+
 // Helper: fail fast if a generator project is used without its submodule initialized.
 def withInitCheck(p: Project, genDirName: String): Project = {
   val checkTask = Def.task {
@@ -445,8 +451,9 @@ lazy val fpga_shells = (project in file("./fpga/fpga-shells"))
   .settings(commonSettings)
 
 lazy val chipyard_fpga = (project in file("./fpga"))
-  .dependsOn(chipyard, fpga_shells)
+  .dependsOn(chipyard, fpga_shells, protoacc)
   .settings(commonSettings)
+  .settings(chiselSettings)
 
 // Components of FireSim
 
