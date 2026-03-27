@@ -30,3 +30,6 @@ project/project/
 .classpath_cache/
 .vscode/
 tests/build/
+*conda*
+conda-reqs/chipyard-base.yaml
+conda-reqs/conda-lock-reqs/*.conda-lock.yml
