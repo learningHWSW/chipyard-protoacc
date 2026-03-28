@@ -1,11 +1,12 @@
 package chipyard.fpga.u55c
 
-import protoacc.WithProtoAcc
+//import protoacc.WithProtoAcc
+import protoacc.WithProtoAccel
 import org.chipsalliance.cde.config._
 
 class WithU55CTweaks extends Config(
   new WithU55CAXIMemHarnessBinder ++
-  new chipyard.harness.WithTieOffL2FBusAXI ++
+  //new chipyard.config.WithExtIn ++
   // clocking
   new chipyard.harness.WithAllClocksFromHarnessClockInstantiator ++
   new chipyard.harness.WithHarnessBinderClockFreqMHz(70) ++
@@ -18,14 +19,14 @@ class WithU55CTweaks extends Config(
 class EmptyU55CConfig extends Config (
   new WithU55CTweaks ++
   new chipyard.EmptyChipTopConfig ++
-  new WithProtoAcc()
+  new WithProtoAccel()
 )
 
 class Protoaccu55cConfig extends Config (
   new chipyard.fpga.u55c.WithU55CTweaks ++
   new chipyard.config.WithNoDebug ++
   new chipyard.config.WithNoUART ++
-  new protoacc.WithProtoAcc ++
+  new protoacc.WithProtoAccel ++
   new freechips.rocketchip.rocket.WithNBigCores(1) ++
   new chipyard.config.AbstractConfig 
 )

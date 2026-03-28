@@ -19,9 +19,12 @@ import scala.collection.immutable.SeqMap
 class XilinxHBMIO(val params: Seq[AXI4BundleParameters], val is16GB: Boolean) extends Bundle {
   val AXI_00_ACLK = Input(Clock())
   val AXI_00_ARESET_N = Input(Reset())
+  val AXI_01_ACLK = Input(Clock())
+  val AXI_01_ARESET_N = Input(Reset())
   val HBM_REF_CLK_0 = Input(Clock())
   val HBM_REF_CLK_1 = if (is16GB) Some(Input(Clock())) else None
   val AXI_00 = Flipped(new XilinxAXI4UpperBundle(params(0), isAXI4Lite = false))
+  val AXI_01 = Flipped(new XilinxAXI4UpperBundle(params(1), isAXI4Lite = false))
   val APB_0_PCLK = Input(Clock())
   val APB_1_PCLK = Input(Clock())
   val APB_0_PRESET_N = Input(Reset())
@@ -38,7 +41,7 @@ class XilinxHBM
 ) extends BlackBox {
   val io = IO(new XilinxHBMIO(bundleParams, is16GB))
   require(!(portNum > 16 && !is16GB))
-  require(portNum > 0 && portNum <= 1) // currently only single port is supported
+  require(portNum > 0 && portNum <= 2) // currently only single port is supported
 
   ElaborationArtefacts.add(s"$desiredName.vivado.tcl",
     s"""
@@ -235,7 +238,7 @@ class XilinxHBM
        |    CONFIG.USER_PHY_ENABLE_13 {TRUE} \\
        |    CONFIG.USER_PHY_ENABLE_14 {TRUE} \\
        |    CONFIG.USER_PHY_ENABLE_15 {TRUE} \\
-       |    CONFIG.USER_SAXI_01 {false} \\
+       |    CONFIG.USER_SAXI_01 {TRUE} \\
        |    CONFIG.USER_SAXI_02 {false} \\
        |    CONFIG.USER_SAXI_03 {false} \\
        |    CONFIG.USER_SAXI_04 {false} \\

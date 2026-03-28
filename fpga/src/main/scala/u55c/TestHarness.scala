@@ -8,7 +8,7 @@ import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.amba.axi4._
 import freechips.rocketchip.diplomacy.AddressSet
 import freechips.rocketchip.prci._
-import protoacc.AXI4ProtoAcc
+//import protoacc.AXI4ProtoAcc
 import sifive.fpgashells.ip.xilinx._
 import sifive.fpgashells.clocks.PLLFactoryKey
 import sifive.fpgashells.shell._
@@ -59,8 +59,10 @@ class U55CFPGATestHarness(implicit p: Parameters) extends U55CShellBasicOverlays
   val sysClkNode = dp(ClockInputOverlayKey).head.place(ClockInputDesignInput()).overlayOutput.node
   val hbmClkNode = dp(ClockInputOverlayKey).last.place(ClockInputDesignInput()).overlayOutput.node
 
+  val hbmClkSink = freechips.rocketchip.prci.ClockSinkNode(Seq(freechips.rocketchip.prci.ClockSinkParameters()))
+  hbmClkSink := hbmClkNode
+
   /*** Connect/Generate clocks ***/
-  // connect to the PLL that will generate multiple clocks
   val harnessSysPLL = dp(PLLFactoryKey)()
   harnessSysPLL := sysClkNode
 
@@ -73,37 +75,55 @@ class U55CFPGATestHarness(implicit p: Parameters) extends U55CShellBasicOverlays
   dutFixedClockNode := wrangler.node := dutClockGroup := harnessSysPLL
 
   dutClockNode := dutFixedClockNode
+  
+  val placedXDMA = dp(CustomXDMAOverlayKey).head.place(CustomXDMADesignInput(wrangler.node, dutFixedClockNode))
 
-  val placedXDMA = dp(CustomXDMAOverlayKey).head.place(CustomXDMADesignInput(
-    wrangler.node, dutFixedClockNode
-  ))
+  // 1. SINK FOR MAIN XDMA AXI PORT
+  val xdma_axi_sink = AXI4SlaveNode(Seq(AXI4SlavePortParameters(
+    slaves = Seq(AXI4SlaveParameters(
+      address = Seq(AddressSet(0x00000000L, 0x3FFFFFFFFL)), // Match HBM 16GB address space
+      resources = new freechips.rocketchip.resources.SimpleDevice("xdma_sink", Seq()).reg("xdma_sink"),
+      regionType = freechips.rocketchip.diplomacy.RegionType.UNCACHED,
+      executable = true,
+      supportsRead = freechips.rocketchip.diplomacy.TransferSizes(1, 512),
+      supportsWrite = freechips.rocketchip.diplomacy.TransferSizes(1, 512)
+    )),
+    beatBytes = 32 // Match XDMA busBytes width
+  )))
 
-  val dutDomain = LazyModule(new ClockSinkDomain)
-  dutDomain.clockNode := dutFixedClockNode
+  // Connect Master to Sink
+  xdma_axi_sink := placedXDMA.overlayOutput.master
+  
+  // Expose hardware IO for HarnessBinders
+  def xdma_axi_io = xdma_axi_sink.in.head._1
 
-  dutDomain {
-    val ram = LazyModule(new LazyXilinxHBMController(
-      "test"
-    ))
 
-    val xbar = LazyModule(new AXI4Xbar())
+  // 2. SINK FOR XDMA AXI-LITE PORT (This fixes your error!)
+  val xdma_axilite_sink = AXI4SlaveNode(Seq(AXI4SlavePortParameters(
+    slaves = Seq(AXI4SlaveParameters(
+      address = Seq(AddressSet(0x00000000L, 0xFFFFFFFFL)), // 32-bit address space
+      resources = new freechips.rocketchip.resources.SimpleDevice("xdma_lite_sink", Seq()).reg("xdma_lite_sink"),
+      regionType = freechips.rocketchip.diplomacy.RegionType.UNCACHED,
+      executable = true,
+      supportsRead = freechips.rocketchip.diplomacy.TransferSizes(1, 4),
+      supportsWrite = freechips.rocketchip.diplomacy.TransferSizes(1, 4)
+    )),
+    beatBytes = 4 // 32-bit data width for AXI-Lite
+  )))
 
-    val protoacc = LazyModule(new AXI4ProtoAcc())
+  // Connect MasterLite to Sink
+  xdma_axilite_sink := placedXDMA.overlayOutput.masterLite
+  
+  // Expose hardware IO
+  def xdma_axilite_io = xdma_axilite_sink.in.head._1
 
-    ram.node(0) := AXI4UserYanker(capMaxFlight = Some(8)) := xbar.node := AXI4Fragmenter() := placedXDMA.overlayOutput.master
-    ram.slaveClockNodes(0) := dutFixedClockNode
-    ram.HBMRefClockNode := hbmClkNode
 
-    xbar.node := AXI4ILA("protoacc_master") := protoacc.memNode
-
-    protoacc.configNode := AXI4ILA("protoacc_config") := AXI4Fragmenter() := AXI4Buffer() := placedXDMA.overlayOutput.masterLite
-  }
+  // Hardware Implementation phase begins here
   override lazy val module: LazyRawModuleImp = new U55CTestHarnessImpl(this)
 }
 
 
-
-class U55CTestHarnessImpl(outer: U55CFPGATestHarness) extends LazyRawModuleImp(outer) with HasHarnessInstantiators {
+class U55CTestHarnessImpl(val outer: U55CFPGATestHarness) extends LazyRawModuleImp(outer) with HasHarnessInstantiators {
 
   val prst_n = IO(Input(Bool())).suggestName("prst_n")
   outer.xdc.addPackagePin(prst_n, "BF41")
